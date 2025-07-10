@@ -16,14 +16,13 @@ from src.core_utils import (
 )
 
 today = datetime.now().strftime("%y%m%d")
-input_path = f"../../전처리/5월/루리웹_전처리_5월_250604.xlsx"
-output_path = f"../../결과/루루리웹_원문기사_5월_{today}.csv"
+input_path = f"../../전처리/6월/뽐뿌_전처리_250704.xlsx"
+output_path = f"../../결과/뽐뿌_원문기사_6월_{today}.csv"
 os.makedirs(f"../../결과/기사본문_{today}", exist_ok=True)
-
 
 def find_original_article_multiprocess(index, row_dict, total_count):
     # api 키 설정
-    load_dotenv(dotenv_path="../../.gitignore/네이버API키.env")
+    load_dotenv(dotenv_path="../../.gitignore/네이버API키_2.env")
 
     # 키 읽기
     client_id = os.getenv("NAVER_CLIENT_ID")

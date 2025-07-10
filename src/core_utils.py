@@ -290,6 +290,8 @@ def get_news_article_body(url, driver, max_retries=2, index=None):
                 "kyeongin.com": "div#article-body",
                 "obsnews.co.kr": "article#article-view-content-div",
                 "incheonilbo.com": "article#article-view-content-div",
+                "ggilbo.com": "article#article-view-content-div",
+                "ekn.kr": "div#news_body_area_contents",
 
             }
 
@@ -402,6 +404,11 @@ def search_news_with_api(queries, driver, client_id, client_secret, max_results=
                         if oid not in trusted_entertain_oids:
                             # log(f"🚫 비신탁 엔터 언론 (oid={oid}) → {link}", index)
                             continue
+
+                body, new_driver = get_news_article_body(link, driver, index=index)
+                if new_driver != driver:
+                    log("🔁 드라이버가 새로 갱신되었습니다", index)
+                    driver = new_driver
 
                 seen_links.add(link)
                 body, _ = get_news_article_body(link, driver, index=index)
