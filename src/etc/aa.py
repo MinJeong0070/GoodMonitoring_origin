@@ -1,12 +1,12 @@
 import pandas as pd
 import os
 # 파일 경로 설정
-raw_data_file = "../../네이버 블로그_매칭 데이터_5월_중복 게시물 url 제게 후.xlsx"
+raw_data_file = "../../네이버 블로그_매칭 데이터_7월_중복 게시물 url 제게 후_new_공개게시글.xlsx"
 exclude_accounts_file = "../../excel/제외 대상 리스트.xlsx"
 exclude_domains_file = "../../excel/(언진) 수집 제외 도메인 주소_공식 블로그.xlsx"
 
-output_filtered = "최종_필터링_블로그_데이터.xlsx"
-output_removed = "삭제된_블로그_데이터.xlsx"
+output_filtered = "../../최종_필터링_블로그_데이터.xlsx"
+output_removed = "../../삭제된_블로그_데이터.xlsx"
 
 # 데이터 불러오기
 raw_data = pd.read_excel(raw_data_file)

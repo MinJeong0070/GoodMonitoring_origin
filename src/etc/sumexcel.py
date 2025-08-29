@@ -2,7 +2,7 @@ import pandas as pd
 import glob
 import os
 
-folder_path = '결과/4월 블로그 원문기사자료'
+folder_path = '../../결과/4월 블로그 원문기사자료'
 files = glob.glob(os.path.join(folder_path, '*.xlsx'))
 
 merged_df = pd.DataFrame()

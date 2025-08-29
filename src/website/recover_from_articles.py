@@ -88,7 +88,7 @@ log(f" 매칭건수: {matched_count}건")
 log(f" 0.3 이상: {above_30_count}건")
 log(f" 0.8 이상: {above_80_count}건")
 
-# 📎 통계 행을 데이터프레임 끝에 추가
+# 통계 행을 데이터프레임 끝에 추가
 stats_rows = pd.DataFrame([
     {"검색어": "매칭건수", "플랫폼": f"{matched_count}건"},
     {"검색어": "0.3 이상", "플랫폼": f"{above_30_count}건"},

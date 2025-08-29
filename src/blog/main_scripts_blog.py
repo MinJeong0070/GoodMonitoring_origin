@@ -53,12 +53,12 @@ def find_original_article_multiprocess(index, row_dict, total_count):
                 f.write(f"[URL] {best['link']}\n\n{best['body']}")
             log(f"📝 저장 완료 → {filename} (복사율: {score})", index)
 
-            # ⬇️ 엑셀에 하이퍼링크 포맷으로 저장
+            # 엑셀에 하이퍼링크 포맷으로 저장
             hyperlink = f'=HYPERLINK("{best["link"]}")'
             return index, hyperlink, score
         else:
             log(f"⚠️ 복사율 낮음 (복사율: {score})", index)
-            return index, "", 0.0  # ⬅️ 복사율 낮으면 아무것도 저장 안 함
+            return index, "", 0.0  #  복사율 낮으면 아무것도 저장 안 함
 
     except Exception as e:
         log(f"❌ 에러 발생: {e}", index)

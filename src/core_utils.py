@@ -49,7 +49,7 @@ def log(msg, index=None):
 def create_driver(index=None):
     try:
         options = Options()
-        # options.add_argument("--headless=new")
+        options.add_argument("--headless=new")
         options.add_argument("--disable-background-networking")
         options.add_argument("--disable-sync")
         options.add_argument("--disable-default-apps")
@@ -420,7 +420,7 @@ def is_excluded(url):
 
 MAX_QUERY_LENGTH = 100
 
-def generate_search_queries(title, first, second, last, press):
+def generate_search_queries(title, first, second, last):
     def truncate(text):
         return text[:MAX_QUERY_LENGTH] if text else ""
     # 입력 텍스트들 정제
@@ -433,7 +433,7 @@ def generate_search_queries(title, first, second, last, press):
 
     queries = list(set(filter(None, [
         title_clean,
-        keywords + " " + press,
+        # keywords + " " + press,
         first_clean,
         second_clean,
         last_clean

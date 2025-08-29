@@ -1,5 +1,4 @@
 # main_script.py
-
 import os
 import re
 import time
@@ -16,8 +15,8 @@ from src.core_utils import (
 )
 
 today = datetime.now().strftime("%y%m%d")
-input_path = f"../../전처리/6월/뽐뿌_전처리_250704.xlsx"
-output_path = f"../../결과/뽐뿌_원문기사_6월_{today}.csv"
+input_path = f"../../전처리/naver_blog_kity4099.xlsx"
+output_path = f"../../결과/블로그_kitty4099_7월_{today}.csv"
 os.makedirs(f"../../결과/기사본문_{today}", exist_ok=True)
 
 def find_original_article_multiprocess(index, row_dict, total_count):
@@ -40,14 +39,14 @@ def find_original_article_multiprocess(index, row_dict, total_count):
     try:
         title = clean_text(str(row_dict["게시물 제목"]))
         content = clean_text(str(row_dict["게시물 내용"]))
-        press = clean_text(str(row_dict["검색어"]))
-        # #티스토리
+        # press = clean_text(str(row_dict["검색어"]))
+        #티스토리
         # title = clean_text(str(row_dict["게시글 제목"]))
         # content = clean_text(str(row_dict["게시글내용"]))
         # press = clean_text(str(row_dict["검색어"]))
 
         first, second, last = extract_first_sentences(content)
-        queries = generate_search_queries(title, first, second,last, press)
+        queries = generate_search_queries(title, first, second,last)
         log(f"🔍 검색어: {queries}", index)
 
         search_results = search_news_with_api(queries, driver, client_id, client_secret, index=index)
@@ -97,7 +96,7 @@ if __name__ == "__main__":
     start_index = 0
     tasks = [(start_index+ i, row.to_dict(), total) for i, row in df.iterrows()]
 
-    with ProcessPoolExecutor(max_workers=5) as executor:
+    with ProcessPoolExecutor(max_workers=3) as executor:
         futures = [executor.submit(find_original_article_multiprocess, *args) for args in tasks]
         for future in as_completed(futures):
             try:
@@ -109,14 +108,14 @@ if __name__ == "__main__":
 
     # 매칭 통계 계산
     matched_count = df["복사율"].gt(0).sum()  # 복사율 > 0
-    above_80_count = df["복사율"].ge(0.8).sum()  # 복사율 ≥ 0.8
-    above_30_count = df["복사율"].ge(0.3).sum() - above_80_count  # 0.3 이상 중 0.8 미만
+    above_90_count = df["복사율"].ge(0.9).sum()  # 복사율 ≥ 0.8
+    above_50_count = df["복사율"].ge(0.5).sum() - above_90_count  # 0.3 이상 중 0.8 미만
 
     # 통계 행 구성
     stats_rows = pd.DataFrame([
         {"검색어": "매칭건수", "플랫폼": f"{matched_count}건"},
-        {"검색어": "0.3 이상", "플랫폼": f"{above_30_count}건"},
-        {"검색어": "0.8 이상", "플랫폼": f"{above_80_count}건"},
+        {"검색어": "0.5 이상", "플랫폼": f"{above_50_count}건"},
+        {"검색어": "0.9 이상", "플랫폼": f"{above_90_count}건"},
     ])
 
     # 기존 df에 행 추가
@@ -126,6 +125,6 @@ if __name__ == "__main__":
     df.to_csv(output_path, index=False)
     log("📊 통계 요약")
     log(f" 매칭건수: {matched_count}건")
-    log(f" 0.3 이상: {above_30_count}건")
-    log(f" 0.8 이상: {above_80_count}건")
+    log(f" 0.5 이상: {above_50_count}건")
+    log(f" 0.9 이상: {above_90_count}건")
     log(f"🎉 완료! 저장됨 → {output_path}")
