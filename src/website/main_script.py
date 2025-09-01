@@ -15,13 +15,13 @@ from src.core_utils import (
 )
 
 today = datetime.now().strftime("%y%m%d")
-input_path = f"../../전처리/naver_blog_kity4099.xlsx"
-output_path = f"../../결과/블로그_kitty4099_7월_{today}.csv"
+input_path = f"../../전처리/오늘의유머_전처리_250901.xlsx"
+output_path = f"../../결과/오늘의유머_8월_{today}.csv"
 os.makedirs(f"../../결과/기사본문_{today}", exist_ok=True)
 
 def find_original_article_multiprocess(index, row_dict, total_count):
     # api 키 설정
-    load_dotenv(dotenv_path="../../.gitignore/네이버API키_2.env")
+    load_dotenv(dotenv_path="../../.gitignore/.env")
 
     # 키 읽기
     client_id = os.getenv("NAVER_CLIENT_ID")
@@ -62,7 +62,7 @@ def find_original_article_multiprocess(index, row_dict, total_count):
         #     return index, "", 0.0
 
         if score >= 0.0:
-            filename = f"../../결과/기사본문_{today}/{index+1:03d}_{re.sub(r'[\\/*?:\"<>|]', '', title)[:50]}.txt"
+            filename = f"../../결과/기사본문_{today}/{index+1:03d}_{re.sub(r'[/*?:<>|]', '', title)[:50]}.txt"
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(f"[URL] {best['link']}\n\n{best['body']}")
             log(f"📝 저장 완료 → {filename} (복사율: {score})", index)

@@ -3,10 +3,10 @@ import glob
 import os
 
 # CSV 파일들이 들어있는 폴더 경로 (여기만 수정)
-csv_folder = '../../결과/블블'
+csv_folder = '../../결과/기사본문_250901'
 
 # 결과 저장 경로
-output_path = '../../결과/블로그_원문기사통계_7월.xlsx'
+output_path = '../../결과/블로그_원문기사통계_8월.xlsx'
 
 # CSV 파일 목록 가져오기
 files = glob.glob(os.path.join(csv_folder, '*.csv'))
@@ -15,7 +15,7 @@ merged_df = pd.DataFrame()
 # 파일 병합
 for file in files:
     try:
-        df = pd.read_csv(file,encoding="cp949")
+        df = pd.read_csv(file,encoding="UTF-8")
         df.columns = df.columns.str.strip()
 
         # 불필요한 열 제거 (URL 열은 유지)
