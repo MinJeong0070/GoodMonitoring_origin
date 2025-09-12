@@ -9,17 +9,23 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 from src.core_utils import (
-    create_driver, kill_driver, clean_text,
-    extract_first_sentences, generate_search_queries,
-    calculate_copy_ratio, log, search_news_with_api, similar_sentence
+    clean_text,
+    exact_copy_rate,
+    create_driver,
+    kill_driver,
+    log,
+    extract_first_sentences,
+    generate_search_queries,
+    search_news_with_api,
 )
 
 today = datetime.now().strftime("%y%m%d")
-input_path = f"../../전처리/오늘의유머_전처리_250901.xlsx"
-output_path = f"../../결과/오늘의유머_8월_{today}.csv"
+input_path = f"../../전처리/디시인사이드_전처리_250911.xlsx"
+output_path = f"../../결과/디시인사이드 테스트_9월_{today}.csv"
 os.makedirs(f"../../결과/기사본문_{today}", exist_ok=True)
 
 def find_original_article_multiprocess(index, row_dict, total_count):
+    from dotenv import load_dotenv
     # api 키 설정
     load_dotenv(dotenv_path="../../.gitignore/.env")
 
@@ -39,14 +45,9 @@ def find_original_article_multiprocess(index, row_dict, total_count):
     try:
         title = clean_text(str(row_dict["게시물 제목"]))
         content = clean_text(str(row_dict["게시물 내용"]))
-        # press = clean_text(str(row_dict["검색어"]))
-        #티스토리
-        # title = clean_text(str(row_dict["게시글 제목"]))
-        # content = clean_text(str(row_dict["게시글내용"]))
-        # press = clean_text(str(row_dict["검색어"]))
 
         first, second, last = extract_first_sentences(content)
-        queries = generate_search_queries(title, first, second,last)
+        queries = generate_search_queries(title, first, second, last)
         log(f"🔍 검색어: {queries}", index)
 
         search_results = search_news_with_api(queries, driver, client_id, client_secret, index=index)
@@ -54,25 +55,32 @@ def find_original_article_multiprocess(index, row_dict, total_count):
             log("❌ 관련 뉴스 없음", index)
             return index, "", 0.0
 
-        best = max(search_results, key=lambda x: calculate_copy_ratio(x["body"], title + " " + content))
-        score = calculate_copy_ratio(best["body"], title + " " + content)
+        # ✅ 기존 calculate_copy_ratio → exact_copy_rate 로 교체
+        best = max(
+            search_results,
+            key=lambda x: exact_copy_rate(x["body"], title + " " + content, mode="sentence", min_chars=20, min_tokens=5)
+        )
+        score = exact_copy_rate(
+            best["body"],
+            f"{title} {content}",
+            mode="hybrid",  # 문장 일치 + 거의-일치 + substr 보정
+            min_chars=20,
+            min_tokens=5,
+            almost_tol=0.98
+        )
 
-        # if not similar_sentence(best["body"], title + " " + content):
-        #     log("⚠️ 유사 문장 없음", index)
-        #     return index, "", 0.0
-
-        if score >= 0.0:
-            filename = f"../../결과/기사본문_{today}/{index+1:03d}_{re.sub(r'[/*?:<>|]', '', title)[:50]}.txt"
+        if score > 0.0:
+            safe_title = re.sub(r'[/*?:<>|]', '', title)[:50]  # 전역 import re 활용
+            filename = f"../../결과/기사본문_{today}/{index + 1:03d}_{safe_title}.txt"
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(f"[URL] {best['link']}\n\n{best['body']}")
-            log(f"📝 저장 완료 → {filename} (복사율: {score})", index)
+            log(f"📝 저장 완료 → {filename} (복제율: {score})", index)
 
-            # ⬇ 엑셀에 하이퍼링크 포맷으로 저장
             hyperlink = f'=HYPERLINK("{best["link"]}")'
             return index, hyperlink, score
         else:
-            log(f"⚠️ 복사율 낮음 (복사율: {score})", index)
-            return index, "", 0.0  # 복사율 낮으면 아무것도 저장 안 함
+            log(f"⚠️ 복제율 낮음 (복제율: {score})", index)
+            return index, "", 0.0
 
     except Exception as e:
         log(f"❌ 에러 발생: {e}", index)
@@ -80,7 +88,6 @@ def find_original_article_multiprocess(index, row_dict, total_count):
     finally:
         if driver_quit_needed:
             kill_driver(driver, index)
-
 
 if __name__ == "__main__":
     df = pd.read_excel(input_path, dtype={"게시글 등록일자": str})
@@ -108,7 +115,7 @@ if __name__ == "__main__":
 
     # 매칭 통계 계산
     matched_count = df["복사율"].gt(0).sum()  # 복사율 > 0
-    above_90_count = df["복사율"].ge(0.9).sum()  # 복사율 ≥ 0.8
+    above_90_count = df["복사율"].ge(0.9).sum()  # 복사율 ≥ 0.9
     above_50_count = df["복사율"].ge(0.5).sum() - above_90_count  # 0.3 이상 중 0.8 미만
 
     # 통계 행 구성

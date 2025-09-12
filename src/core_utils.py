@@ -1,6 +1,12 @@
 # core_utils.py
-
 import re
+from html import unescape
+try:
+    import kss  # 선택: 설치되어 있으면 사용
+    _HAS_KSS = True
+except Exception:
+    _HAS_KSS = False
+import difflib
 import os
 import time
 import psutil
@@ -516,4 +522,96 @@ def search_news_with_api(queries, driver, client_id, client_secret, max_results=
             continue
 
     return results
+
+def _normalize_for_exact(s: str) -> str:
+    s = unescape(s)
+    s = re.sub(r'<[^>]+>', ' ', s)              # HTML 태그 제거
+    s = s.replace('“','"').replace('”','"').replace('’',"'").replace('‘',"'")
+    s = s.replace('–', '-').replace('—', '-')   # 대시 통일
+    # 괄호류 간단 통일
+    s = s.replace('（','(').replace('）',')').replace('[','(').replace(']',')')
+    # 숫자 콤마 제거(8,060 -> 8060)
+    s = re.sub(r'(?<=\d),(?=\d)', '', s)
+    # 공백 정리
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+def _split_sentences(text: str):
+    text = text.strip()
+    if not text:
+        return []
+    if _HAS_KSS:
+        return [s.strip() for s in kss.split_sentences(text) if s and s.strip()]
+    # fallback: 마침표/물음표/느낌표 + 줄바꿈
+    parts = re.split(r'(?<=[.!?])\s+|\n+', text)
+    return [p.strip() for p in parts if p and p.strip()]
+
+def _is_valid_sentence(s: str, min_chars=20, min_tokens=5):
+    if len(s) < min_chars:
+        return False
+    if len(re.findall(r'\w+', s)) < min_tokens:
+        return False
+    return True
+
+def _almost_equal(a: str, b: str, tol: float = 0.98) -> bool:
+    """구두점/공백 등 미세차이를 허용하는 '거의 완전일치'."""
+    return difflib.SequenceMatcher(a=a, b=b, autojunk=False).ratio() >= tol
+
+def exact_copy_rate(article_text: str,
+                    post_text: str,
+                    mode: str = "sentence",      # "sentence" | "substr" | "hybrid"
+                    min_chars: int = 20,
+                    min_tokens: int = 5,
+                    almost_tol: float = 0.98) -> float:
+    """
+    복제율 = (일치(또는 거의-일치) 문장 수) / (원문 유효 문장 수)
+    반환값은 소수점 둘째자리까지 반올림 (0.00 ~ 1.00)
+    - mode="sentence": 문장→문장 집합 매칭 + 거의-일치 보강
+    - mode="substr": 원문 문장 ∈ 게시글 본문 서브스트링
+    - mode="hybrid": sentence 우선, 실패분만 substr로 재확인
+    """
+    # 1) 문장 분리 + 정규화
+    A = [_normalize_for_exact(x) for x in _split_sentences(article_text)]
+    A = [x for x in A if _is_valid_sentence(x, min_chars, min_tokens)]
+    if not A:
+        return 0.0
+
+    P_sent = [_normalize_for_exact(x) for x in _split_sentences(post_text)]
+    P_set = set(P_sent)
+    P_all = _normalize_for_exact(post_text)
+
+    copied = 0
+
+    if mode in ("sentence", "hybrid"):
+        # 1차: 완전 일치
+        unmatched = []
+        for s in A:
+            if s in P_set:
+                copied += 1
+            else:
+                unmatched.append(s)
+
+        # 2차: 거의-일치(미세 구두점/공백 차이 허용)
+        if unmatched:
+            for s in list(unmatched):
+                candidates = [t for t in P_sent if abs(len(t) - len(s)) / max(1, len(s)) < 0.2]
+                if any(_almost_equal(s, t, tol=almost_tol) for t in candidates):
+                    copied += 1
+                    unmatched.remove(s)
+
+        # hybrid 모드면 남은 unmatched를 substr로 확인
+        if mode == "hybrid" and unmatched:
+            for s in unmatched:
+                if s and s in P_all:
+                    copied += 1
+
+    elif mode == "substr":
+        for s in A:
+            if s and s in P_all:
+                copied += 1
+
+    total = len(A)
+    if total == 0:
+        return 0.0
+    return round(copied / total, 2)   # ✅ 소수점 둘째자리까지 반올림
 
