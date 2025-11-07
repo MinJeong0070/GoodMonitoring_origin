@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from src.core_utils import (
     clean_text,
     exact_copy_rate,
+    #calculate_sequence_matcher_ratio,
     create_driver,
     kill_driver,
     log,
@@ -20,8 +21,8 @@ from src.core_utils import (
 )
 
 today = datetime.now().strftime("%y%m%d")
-input_path = f"../../전처리/디시인사이드_전처리_250911.xlsx"
-output_path = f"../../결과/디시인사이드 테스트_9월_{today}.csv"
+input_path = f"../../전처리/티스토리_전처리_20251106.xlsx"
+output_path = f"../../결과/티스토리_10월_{today}.csv"
 os.makedirs(f"../../결과/기사본문_{today}", exist_ok=True)
 
 def find_original_article_multiprocess(index, row_dict, total_count):
@@ -68,13 +69,23 @@ def find_original_article_multiprocess(index, row_dict, total_count):
             min_tokens=5,
             almost_tol=0.98
         )
-
+        """
+        best = max(
+            search_results,
+            key=lambda x: calculate_sequence_matcher_ratio(x["body"], title + " " + content)
+        )
+        score = calculate_sequence_matcher_ratio(
+            best["body"],
+            f"{title} {content}"
+        )
+        """
         if score > 0.0:
             safe_title = re.sub(r'[/*?:<>|]', '', title)[:50]  # 전역 import re 활용
             filename = f"../../결과/기사본문_{today}/{index + 1:03d}_{safe_title}.txt"
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(f"[URL] {best['link']}\n\n{best['body']}")
             log(f"📝 저장 완료 → {filename} (복제율: {score})", index)
+            # log(f"📝 저장 완료 → {filename} (SequenceMatcher 복사율: {score})", index)
 
             hyperlink = f'=HYPERLINK("{best["link"]}")'
             return index, hyperlink, score

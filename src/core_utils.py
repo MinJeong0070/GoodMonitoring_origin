@@ -26,6 +26,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
+from difflib import SequenceMatcher
+
 # 날짜
 today = datetime.now().strftime("%y%m%d")
 
@@ -231,6 +233,7 @@ def load_trusted_oids():
 
     base_path = "../../oid 리스트"  # 폴더 경로에 맞게 수정A
     news_oids = load_oid_from_excel(os.path.join(base_path, "네이버뉴스 신탁언론 oid.xlsx"))
+
     sports_oids = load_oid_from_excel(os.path.join(base_path, "네이버스포츠 신탁언론 oid.xlsx"))
     entertain_oids = load_oid_from_excel(os.path.join(base_path, "네이버엔터 신탁언론 oid.xlsx"))
 
@@ -238,6 +241,28 @@ def load_trusted_oids():
 
 trusted_news_oids, trusted_sports_oids, trusted_entertain_oids = load_trusted_oids()
 
+def load_trusted_domains(xlsx_path: str) -> list[str]:
+    try:
+        df = pd.read_excel(xlsx_path)
+        # '도메인' 컬럼에서 공백/대소문자 정리
+        doms = (
+            df["도메인"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .tolist()
+        )
+        return doms
+    except Exception as e:
+        log(f"⚠️ 도메인 화이트리스트 로딩 실패: {e}")
+        return []
+
+# 절대경로: 질문에서 주신 경로 그대로 사용
+TRUSTED_DOMAINS = load_trusted_domains(
+    r"D:\jupyter\community_site_crawling-main\원문기사\oid 리스트\매체사_도메인_정보.xlsx"
+)
+log(f"📦 도메인 화이트리스트 크기: {len(TRUSTED_DOMAINS)}")
 
 def fallback_with_requests(url):
     try:
@@ -506,6 +531,18 @@ def search_news_with_api(queries, driver, client_id, client_secret, max_results=
                             # log(f"🚫 비신탁 엔터 언론 (oid={oid}) → {link}", index)
                             continue
 
+                else:
+                    netloc = urlparse(link).netloc.lower()  # ex) www.ajunews.com
+                    # www/m 등 서브도메인까지 허용하려면 endswith 사용
+                    if TRUSTED_DOMAINS:  # 리스트가 비어있을 땐 필터 생략(디버그 편의)
+                        ok = any(
+                            netloc == d or netloc.endswith("." + d) or netloc.endswith(d)
+                            for d in TRUSTED_DOMAINS
+                        )
+                        if not ok:
+                            # log(f"🚫 비화이트리스트 도메인 제외: {netloc} → {link}", index)
+                            continue
+
                 body, new_driver = get_news_article_body(link, driver, index=index)
                 if new_driver != driver:
                     log("🔁 드라이버가 새로 갱신되었습니다", index)
@@ -556,6 +593,32 @@ def _is_valid_sentence(s: str, min_chars=20, min_tokens=5):
 def _almost_equal(a: str, b: str, tol: float = 0.98) -> bool:
     """구두점/공백 등 미세차이를 허용하는 '거의 완전일치'."""
     return difflib.SequenceMatcher(a=a, b=b, autojunk=False).ratio() >= tol
+
+"""
+def calculate_sequence_matcher_ratio(article: str, post: str) -> float:
+    
+    SequenceMatcher 기반 단방향 복사율:
+      - article(원문)의 글자 중 post(게시글)에 포함되는 비율 계산
+      - 글자 단위 비교이므로 띄어쓰기/순서 일치에 민감
+    
+    def _clean(t):
+        t = "" if t is None else str(t)
+        t = re.sub(r"[^\w\s]", "", t)
+        t = re.sub(r"\s+", " ", t)
+        return t.strip()
+
+    article_clean = _clean(article)
+    post_clean = _clean(post)
+
+    if not article_clean or not post_clean:
+        return 0.0
+
+    # post_clean이 article_clean과 얼마나 겹치는지 확인
+    matcher = SequenceMatcher(None, post_clean, article_clean)
+    matched_len = sum(block.size for block in matcher.get_matching_blocks() if block.size > 0)
+    ratio = matched_len / len(article_clean)
+    return round(ratio, 3)
+"""
 
 def exact_copy_rate(article_text: str,
                     post_text: str,
