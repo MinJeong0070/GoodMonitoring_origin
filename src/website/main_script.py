@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 from src.core_utils import (
     clean_text,
     exact_copy_rate,
-    #calculate_sequence_matcher_ratio,
+    calculate_sequence_matcher_ratio,
+    calculate_copy_ratio,
     create_driver,
     kill_driver,
     log,
@@ -21,84 +22,96 @@ from src.core_utils import (
 )
 
 today = datetime.now().strftime("%y%m%d")
-input_path = f"../../전처리/티스토리_전처리_20251106.xlsx"
-output_path = f"../../결과/티스토리_10월_{today}.csv"
+input_path = f"../../전처리/오늘의유머_전처리_251222.xlsx"
+output_path = f"../../결과/오늘의유머_12월 3주차_{today}.csv"
 os.makedirs(f"../../결과/기사본문_{today}", exist_ok=True)
 
 def find_original_article_multiprocess(index, row_dict, total_count):
     from dotenv import load_dotenv
-    # api 키 설정
-    load_dotenv(dotenv_path="../../.gitignore/.env")
 
-    # 키 읽기
+    # API 키 로드
+    load_dotenv(dotenv_path="../../.gitignore/.env")
     client_id = os.getenv("NAVER_CLIENT_ID")
     client_secret = os.getenv("NAVER_CLIENT_SECRET")
 
     driver = create_driver(index)
     if index == 0:
-        time.sleep(10)  # 첫 태스크만 잠시 대기
+        time.sleep(10)
     if driver is None:
         log("❌ 드라이버 생성 실패 → 스킵", index)
-        return index, "", 0.0
-
-    driver_quit_needed = True
+        return index, "", 0.0, 0.0
 
     try:
         title = clean_text(str(row_dict["게시물 제목"]))
         content = clean_text(str(row_dict["게시물 내용"]))
+        merged_post = f"{title} {content}"
 
+        # 검색어 생성
         first, second, last = extract_first_sentences(content)
         queries = generate_search_queries(title, first, second, last)
         log(f"🔍 검색어: {queries}", index)
 
+        # 기사 후보 검색
         search_results = search_news_with_api(queries, driver, client_id, client_secret, index=index)
         if not search_results:
             log("❌ 관련 뉴스 없음", index)
-            return index, "", 0.0
+            return index, "", 0.0, 0.0
 
-        # ✅ 기존 calculate_copy_ratio → exact_copy_rate 로 교체
+        # -----------------------------------------------------------
+        # 🔥 1) TF-IDF 기준으로 best 기사 선택하도록 명확히 변경
+        # -----------------------------------------------------------
         best = max(
             search_results,
-            key=lambda x: exact_copy_rate(x["body"], title + " " + content, mode="sentence", min_chars=20, min_tokens=5)
+            key=lambda x: calculate_copy_ratio(x["body"], merged_post)
         )
-        score = exact_copy_rate(
+
+        # -----------------------------------------------------------
+        # 🔥 2) TF-IDF 복제율 계산
+        # -----------------------------------------------------------
+        tfidf_score = calculate_copy_ratio(best["body"], merged_post)
+
+        # -----------------------------------------------------------
+        # 🔥 3) 문장완전일치 복제율 계산 (exact_copy_rate)
+        # -----------------------------------------------------------
+        exact_score = exact_copy_rate(
             best["body"],
-            f"{title} {content}",
-            mode="hybrid",  # 문장 일치 + 거의-일치 + substr 보정
+            merged_post,
+            mode="hybrid",
             min_chars=20,
             min_tokens=5,
             almost_tol=0.98
         )
-        """
-        best = max(
-            search_results,
-            key=lambda x: calculate_sequence_matcher_ratio(x["body"], title + " " + content)
-        )
-        score = calculate_sequence_matcher_ratio(
-            best["body"],
-            f"{title} {content}"
-        )
-        """
-        if score > 0.0:
-            safe_title = re.sub(r'[/*?:<>|]', '', title)[:50]  # 전역 import re 활용
+
+        sequence_score = calculate_sequence_matcher_ratio(best["body"], merged_post)
+
+        # -----------------------------------------------------------
+        # 🔥 4) 기사본문 저장
+        # -----------------------------------------------------------
+        if tfidf_score > 0.0 or exact_score > 0.0:
+            safe_title = re.sub(r'[/*?:<>|]', '', title)[:50]
             filename = f"../../결과/기사본문_{today}/{index + 1:03d}_{safe_title}.txt"
+
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(f"[URL] {best['link']}\n\n{best['body']}")
-            log(f"📝 저장 완료 → {filename} (복제율: {score})", index)
-            # log(f"📝 저장 완료 → {filename} (SequenceMatcher 복사율: {score})", index)
+
+            log(
+                f"📝 저장 완료 → {filename} (TF-IDF: {tfidf_score}, 문장완전일치: {exact_score})",
+                index
+            )
 
             hyperlink = f'=HYPERLINK("{best["link"]}")'
-            return index, hyperlink, score
+            return index, hyperlink, tfidf_score, exact_score, sequence_score
+
         else:
-            log(f"⚠️ 복제율 낮음 (복제율: {score})", index)
-            return index, "", 0.0
+            log(f"⚠️ 복제율 낮음 (TF-IDF: {tfidf_score}, 문장완전일치: {exact_score})", index)
+            return index, "", tfidf_score, exact_score
 
     except Exception as e:
         log(f"❌ 에러 발생: {e}", index)
-        return index, "", 0.0
+        return index, "", 0.0, 0.0
+
     finally:
-        if driver_quit_needed:
-            kill_driver(driver, index)
+        kill_driver(driver, index)
 
 if __name__ == "__main__":
     df = pd.read_excel(input_path, dtype={"게시글 등록일자": str})
@@ -109,7 +122,10 @@ if __name__ == "__main__":
             lambda x: f'=HYPERLINK("{x}")' if pd.notna(x) and not str(x).startswith("=HYPERLINK") else x
         )
     df["원본기사"] = ""
-    df["복사율"] = 0.0
+    df["TF-IDF"] = 0.0
+    df["Sequence"] = 0.0
+    df["문장완전일치"] = 0.0
+
     total = len(df)
     start_index = 0
     tasks = [(start_index+ i, row.to_dict(), total) for i, row in df.iterrows()]
@@ -118,16 +134,20 @@ if __name__ == "__main__":
         futures = [executor.submit(find_original_article_multiprocess, *args) for args in tasks]
         for future in as_completed(futures):
             try:
-                index, link, score = future.result()
+                index, link, tfidf_score, sequence_score, exact_score = future.result()
                 df.at[index, "원본기사"] = link
-                df.at[index, "복사율"] = score
+                df.at[index, "TF-IDF"] = tfidf_score
+                df.at[index, "Sequence"] = sequence_score
+                df.at[index, "문장완전일치"] = exact_score
+
+
             except Exception as e:
                 log(f"❌ 결과 처리 오류: {e}")
 
     # 매칭 통계 계산
-    matched_count = df["복사율"].gt(0).sum()  # 복사율 > 0
-    above_90_count = df["복사율"].ge(0.9).sum()  # 복사율 ≥ 0.9
-    above_50_count = df["복사율"].ge(0.5).sum() - above_90_count  # 0.3 이상 중 0.8 미만
+    matched_count = df["TF-IDF"].gt(0).sum()  # 복사율 > 0
+    above_90_count = df["TF-IDF"].ge(0.9).sum()  # 복사율 ≥ 0.9
+    above_50_count = df["TF-IDF"].ge(0.5).sum() - above_90_count  # 0.3 이상 중 0.8 미만
 
     # 통계 행 구성
     stats_rows = pd.DataFrame([
