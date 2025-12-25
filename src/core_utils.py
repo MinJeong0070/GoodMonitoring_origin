@@ -594,13 +594,13 @@ def _almost_equal(a: str, b: str, tol: float = 0.98) -> bool:
     """구두점/공백 등 미세차이를 허용하는 '거의 완전일치'."""
     return difflib.SequenceMatcher(a=a, b=b, autojunk=False).ratio() >= tol
 
-"""
+
 def calculate_sequence_matcher_ratio(article: str, post: str) -> float:
-    
+    """
     SequenceMatcher 기반 단방향 복사율:
       - article(원문)의 글자 중 post(게시글)에 포함되는 비율 계산
       - 글자 단위 비교이므로 띄어쓰기/순서 일치에 민감
-    
+    """
     def _clean(t):
         t = "" if t is None else str(t)
         t = re.sub(r"[^\w\s]", "", t)
@@ -618,7 +618,7 @@ def calculate_sequence_matcher_ratio(article: str, post: str) -> float:
     matched_len = sum(block.size for block in matcher.get_matching_blocks() if block.size > 0)
     ratio = matched_len / len(article_clean)
     return round(ratio, 3)
-"""
+
 
 def exact_copy_rate(article_text: str,
                     post_text: str,
