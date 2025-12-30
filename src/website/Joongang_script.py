@@ -1,18 +1,4 @@
 # Joongang_script.py
-"""
-특정 기사 1개(예: 중앙일보 기사)와
-각 게시물(제목+내용) 간의 유사도(TF-IDF / SequenceMatcher / 문장완전일치)를
-직접 계산하는 전용 스크립트.
-
-전제:
-- src.core_utils 에 다음 함수들이 이미 구현되어 있음:
-  clean_text, exact_copy_rate, calculate_copy_ratio,
-  create_driver, kill_driver, log,
-  get_news_article_body
-- 입력 파일: 게시물 제목/내용이 들어 있는 엑셀/CSV
-    * 필수 컬럼: "게시물 제목", "게시물 내용"
-"""
-
 import os
 import re
 from datetime import datetime
@@ -30,10 +16,8 @@ from src.core_utils import (
     get_news_article_body,
 )
 
-# ✅ 유사도 계산 대상 기사 URL (필요시 이 값만 바꿔서 사용)
+# 유사도 계산 대상 기사 URL (필요시 이 값만 바꿔서 사용)
 TARGET_ARTICLE_URL = "https://www.joongang.co.kr/article/25328097"
-
-
 
 # ============================================================
 # 1. SequenceMatcher 기반 복제율 계산
