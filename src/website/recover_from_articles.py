@@ -14,11 +14,12 @@ article_folder = f"../../결과/5월 원문기사자료/기사본문_웃긴대�
 output_path = f"../../결과/원문기사_웃긴대학_{today}.csv"
 
 # 엑셀 로드
+# 전처리된 엑셀 파일 불러오기
 df = pd.read_excel(input_path, dtype={"게시글 등록일자": str})
 log(f"📂 엑셀 로드 완료 → {input_path}")
 
-# 게시물 URL 하이퍼링크 적용
 if "게시물 URL" in df.columns:
+# 게시물 URL을 엑셀 하이퍼링크 형식으로 변환
     df["게시물 URL"] = df["게시물 URL"].apply(
         lambda x: f'=HYPERLINK("{x}")' if pd.notna(x) and not str(x).startswith("=HYPERLINK") else x
     )
@@ -34,10 +35,11 @@ if not os.path.exists(article_folder):
     log(f"🚫 기사본문 폴더가 존재하지 않습니다: {article_folder}")
     exit()
 
+# 기사 본문 텍스트 파일 목록 불러오기
 files = [f for f in os.listdir(article_folder) if f.endswith(".txt")]
 log(f"📰 기사본문 파일 {len(files)}개 확인됨")
 
-# 기사본문 파일 기반 복사율 재계산
+# 기사 본문 기반 복사율 계산 수행
 for filename in files:
     try:
         index_str = filename.split("_")[0]
@@ -78,7 +80,7 @@ for filename in files:
     except Exception as e:
         log(f"❌ 복구 실패 [{filename}] → {e}")
 
-# 📊 복사율 통계 계산
+# 복사율 기준 통계 계산
 matched_count = df["복사율"].gt(0).sum()
 above_80_count = df["복사율"].ge(0.8).sum()
 above_30_count = df[(df["복사율"] >= 0.3) & (df["복사율"] < 0.8)].shape[0]
@@ -95,8 +97,9 @@ stats_rows = pd.DataFrame([
     {"검색어": "0.8 이상", "플랫폼": f"{above_80_count}건"},
 ])
 
+# 📈 통계 결과를 원본 데이터프레임에 추가
 df = pd.concat([df, stats_rows], ignore_index=True)
 
-# 💾 저장
+# 💾 복사율 계산 결과 저장
 df.to_csv(output_path, index=False)
 log(f"💾 복구된 엑셀 저장 완료 → {output_path}")

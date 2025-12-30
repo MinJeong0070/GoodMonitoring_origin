@@ -48,12 +48,14 @@ logging.basicConfig(
     encoding='utf-8'
 )
 
+# 콘솔 및 로그파일에 로그 메시지 출력 (index가 있으면 앞에 번호 붙임)
 def log(msg, index=None):
     prefix = f"[{index+1:03d}] " if index is not None else ""
     full_msg = f"{prefix}{msg}"
     print(full_msg)
     logging.info(full_msg)
 
+# 탐지 방지 옵션을 적용한 ChromeDriver 생성 함수
 def create_driver(index=None):
     try:
         options = Options()
@@ -94,6 +96,7 @@ def create_driver(index=None):
 
 
 
+# Selenium 및 관련 프로세스를 완전히 종료하는 함수
 def kill_driver(driver, index=None):
     if driver:
         try:
@@ -114,6 +117,7 @@ def kill_driver(driver, index=None):
             log(f"⚠️ 강제 프로세스 종료 실패: {e}", index)
 
 
+# 게시글 본문/기사에서 불필요한 텍스트 패턴, 특수문자, 공백 등을 정리
 def clean_text(text):
     if not isinstance(text, str):
         text = str(text)
@@ -150,11 +154,13 @@ def clean_text(text):
     return text.strip()
 
 #키워드 추출
+# Okt 기반 명사 추출을 통한 키워드 생성 함수
 def extract_keywords(text, num_keywords=5):
     nouns = okt.nouns(text)
     return " ".join(nouns[:num_keywords])
 
 #문장 추출
+# 본문에서 첫 문장, 두 번째 문장, 마지막 문장을 추출
 def extract_first_sentences(text):
     paras = re.split(r'\n{2,}', text.strip())
     get_first = lambda p: re.split(r'(?<=[.!?])(?=\s|[가-힣])', p.strip())[0] if p else ""
@@ -165,7 +171,7 @@ def extract_first_sentences(text):
 
     return first, second, last
 
-#문장 유사도 확인함수
+# TF-IDF 기반 문장 단위 유사도 평균 → 복제율 계산
 def calculate_copy_ratio(article, post):
     def clean(t): return re.sub(r'\s+', ' ', re.sub(r'[^\w\s]', '', t)).strip()
     article, post = clean(article), clean(post)
@@ -181,7 +187,7 @@ def calculate_copy_ratio(article, post):
             continue
     return round(sum(scores)/len(scores), 3) if scores else 0.0
 
-#같은 문장 유무 확인함수
+# TF-IDF 기반 특정 문장 유사도 확인 (특정 임계값 이상 여부)
 def similar_sentence(article, post, threshold=0.3):
 
     article_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', article) if s.strip()]
@@ -200,6 +206,7 @@ def similar_sentence(article, post, threshold=0.3):
     return False
 
 
+# Selenium driver.get 시도 → 실패하면 재시도 여부 판단
 def safe_get(driver, url, timeout=90, index=None):
     try:
         driver.set_page_load_timeout(timeout)
@@ -216,6 +223,7 @@ def safe_get(driver, url, timeout=90, index=None):
         kill_driver(driver, index)
         return False
 
+# 뉴스/스포츠/엔터 OID 화이트리스트 Excel 로드
 def load_trusted_oids():
     def load_oid_from_excel(filename):
         try:
@@ -241,6 +249,7 @@ def load_trusted_oids():
 
 trusted_news_oids, trusted_sports_oids, trusted_entertain_oids = load_trusted_oids()
 
+# 매체사 도메인 화이트리스트 Excel 로드
 def load_trusted_domains(xlsx_path: str) -> list[str]:
     try:
         df = pd.read_excel(xlsx_path)
@@ -264,6 +273,7 @@ TRUSTED_DOMAINS = load_trusted_domains(
 )
 log(f"📦 도메인 화이트리스트 크기: {len(TRUSTED_DOMAINS)}")
 
+# Selenium 실패 시 requests로 대체 HTML 수집 (기사 본문 텍스트)
 def fallback_with_requests(url):
     try:
         headers = {
@@ -281,6 +291,7 @@ def fallback_with_requests(url):
     except:
         return ""
 
+# ✅ 주어진 뉴스 URL에서 기사 본문 HTML 파싱 및 텍스트 수집
 def get_news_article_body(url, driver, max_retries=2, index=None):
     for attempt in range(max_retries):
         try:
@@ -446,11 +457,13 @@ def get_news_article_body(url, driver, max_retries=2, index=None):
     return fallback, None
 
 
+# 제외 도메인 URL 여부 판단
 def is_excluded(url):
     return any(domain in url for domain in excluded_domains)
 
 MAX_QUERY_LENGTH = 100
 
+# 게시글 제목+본문에서 뉴스 검색용 Query 리스트 생성
 def generate_search_queries(title, first, second, last):
     def truncate(text):
         return text[:MAX_QUERY_LENGTH] if text else ""
@@ -471,6 +484,7 @@ def generate_search_queries(title, first, second, last):
     ])))
     return queries
 
+# Naver URL에서 OID(뉴스사 식별자) 추출
 def extract_oid_from_naver_url(link):
     parsed = urlparse(link)
     path = parsed.path
@@ -487,6 +501,7 @@ def extract_oid_from_naver_url(link):
 
     return None
 
+# Naver Open API를 사용한 뉴스 검색 및 본문 수집
 def search_news_with_api(queries, driver, client_id, client_secret, max_results=15, index=None):
     headers = {
         "X-Naver-Client-Id": client_id,
@@ -560,6 +575,7 @@ def search_news_with_api(queries, driver, client_id, client_secret, max_results=
 
     return results
 
+# HTML 태그, 공백, 구두점 정리하여 비교용 정규화
 def _normalize_for_exact(s: str) -> str:
     s = unescape(s)
     s = re.sub(r'<[^>]+>', ' ', s)              # HTML 태그 제거
@@ -573,6 +589,7 @@ def _normalize_for_exact(s: str) -> str:
     s = re.sub(r'\s+', ' ', s).strip()
     return s
 
+# 마침표 기준 문장 분리 (kss 우선, 없을 경우 수동 패턴)
 def _split_sentences(text: str):
     text = text.strip()
     if not text:
@@ -583,6 +600,7 @@ def _split_sentences(text: str):
     parts = re.split(r'(?<=[.!?])\s+|\n+', text)
     return [p.strip() for p in parts if p and p.strip()]
 
+# 최소 글자수·토큰 수 조건 만족하는 유효 문장 여부 판단
 def _is_valid_sentence(s: str, min_chars=20, min_tokens=5):
     if len(s) < min_chars:
         return False
@@ -590,11 +608,13 @@ def _is_valid_sentence(s: str, min_chars=20, min_tokens=5):
         return False
     return True
 
+# SequenceMatcher를 활용한 '거의-일치' 판단 (구두점 등 무시)
 def _almost_equal(a: str, b: str, tol: float = 0.98) -> bool:
     """구두점/공백 등 미세차이를 허용하는 '거의 완전일치'."""
     return difflib.SequenceMatcher(a=a, b=b, autojunk=False).ratio() >= tol
 
 
+# SequenceMatcher 기반 단방향 복사율 계산 (게시글 기준)
 def calculate_sequence_matcher_ratio(article: str, post: str) -> float:
     """
     SequenceMatcher 기반 단방향 복사율:
@@ -613,13 +633,13 @@ def calculate_sequence_matcher_ratio(article: str, post: str) -> float:
     if not article_clean or not post_clean:
         return 0.0
 
-    # post_clean이 article_clean과 얼마나 겹치는지 확인
     matcher = SequenceMatcher(None, post_clean, article_clean)
     matched_len = sum(block.size for block in matcher.get_matching_blocks() if block.size > 0)
     ratio = matched_len / len(article_clean)
     return round(ratio, 3)
 
 
+# 문장 일치/거의-일치/부분포함 기반의 총 복제율 계산 함수 (mode 지정 가능)
 def exact_copy_rate(article_text: str,
                     post_text: str,
                     mode: str = "sentence",      # "sentence" | "substr" | "hybrid"
@@ -662,7 +682,6 @@ def exact_copy_rate(article_text: str,
                     copied += 1
                     unmatched.remove(s)
 
-        # hybrid 모드면 남은 unmatched를 substr로 확인
         if mode == "hybrid" and unmatched:
             for s in unmatched:
                 if s and s in P_all:
@@ -676,5 +695,5 @@ def exact_copy_rate(article_text: str,
     total = len(A)
     if total == 0:
         return 0.0
-    return round(copied / total, 2)   # ✅ 소수점 둘째자리까지 반올림
+    return round(copied / total, 2)   # 소수점 둘째자리까지 반올림
 

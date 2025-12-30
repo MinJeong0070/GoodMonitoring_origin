@@ -22,10 +22,11 @@ from src.core_utils import (
 )
 
 today = datetime.now().strftime("%y%m%d")
-input_path = f"../../전처리/오늘의유머_전처리_251222.xlsx"
-output_path = f"../../결과/오늘의유머_12월 3주차_{today}.csv"
+input_path = f"../../전처리/네이트판_전처리_251229.xlsx"
+output_path = f"../../결과/네이트판_12월 4주차_{today}.csv"
 os.makedirs(f"../../결과/기사본문_{today}", exist_ok=True)
 
+# 게시글 제목+내용을 기반으로 뉴스 검색 및 복제율 평가 → 기사 본문 저장
 def find_original_article_multiprocess(index, row_dict, total_count):
     from dotenv import load_dotenv
 
@@ -58,7 +59,7 @@ def find_original_article_multiprocess(index, row_dict, total_count):
             return index, "", 0.0, 0.0
 
         # -----------------------------------------------------------
-        # 🔥 1) TF-IDF 기준으로 best 기사 선택하도록 명확히 변경
+        # 1) TF-IDF 기준으로 best 기사 선택하도록 명확히 변경
         # -----------------------------------------------------------
         best = max(
             search_results,
@@ -66,12 +67,12 @@ def find_original_article_multiprocess(index, row_dict, total_count):
         )
 
         # -----------------------------------------------------------
-        # 🔥 2) TF-IDF 복제율 계산
+        # 2) TF-IDF 복제율 계산
         # -----------------------------------------------------------
         tfidf_score = calculate_copy_ratio(best["body"], merged_post)
 
         # -----------------------------------------------------------
-        # 🔥 3) 문장완전일치 복제율 계산 (exact_copy_rate)
+        # 3) 문장완전일치 복제율 계산 (exact_copy_rate)
         # -----------------------------------------------------------
         exact_score = exact_copy_rate(
             best["body"],
@@ -84,9 +85,6 @@ def find_original_article_multiprocess(index, row_dict, total_count):
 
         sequence_score = calculate_sequence_matcher_ratio(best["body"], merged_post)
 
-        # -----------------------------------------------------------
-        # 🔥 4) 기사본문 저장
-        # -----------------------------------------------------------
         if tfidf_score > 0.0 or exact_score > 0.0:
             safe_title = re.sub(r'[/*?:<>|]', '', title)[:50]
             filename = f"../../결과/기사본문_{today}/{index + 1:03d}_{safe_title}.txt"
@@ -159,7 +157,6 @@ if __name__ == "__main__":
     # 기존 df에 행 추가
     df = pd.concat([df, stats_rows], ignore_index=True)
 
-    # 저장
     df.to_csv(output_path, index=False)
     log("📊 통계 요약")
     log(f" 매칭건수: {matched_count}건")
